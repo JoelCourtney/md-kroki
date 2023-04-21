@@ -14,11 +14,15 @@ pub struct MdKroki {
 #[allow(clippy::type_complexity)]
 pub enum PathResolver {
     None,
-    Path(Box<dyn Fn(&Path) -> Result<String>>),
-    PathAndRoot(Box<dyn Fn(&Path, Option<&str>) -> Result<String>>),
+    Path(Box<dyn Fn(&Path) -> Result<String> + Send>),
+    PathAndRoot(Box<dyn Fn(&Path, Option<&str>) -> Result<String> + Send>),
 }
 
 impl MdKroki {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn endpoint(mut self, endpoint: String) -> Self {
         self.endpoint = endpoint;
         self
