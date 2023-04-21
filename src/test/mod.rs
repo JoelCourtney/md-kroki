@@ -1,8 +1,8 @@
 use crate::MdKroki;
-use pretty_assertions::assert_eq;
-use tokio::test;
-use std::path::Path;
 use crate::PathResolver;
+use pretty_assertions::assert_eq;
+use std::path::Path;
+use tokio::test;
 
 macro_rules! test_from_files {
     ($dir:expr, $renderer:expr) => {
@@ -19,16 +19,14 @@ macro_rules! test_from_files {
 }
 
 macro_rules! path_resolver {
-    ($dir:expr) => {
-        {
+    ($dir:expr) => {{
         let resolver = |path: &Path| {
             let base_path_string = format!("src/test/{}", $dir);
             let base_path = Path::new(&base_path_string);
             Ok(std::fs::read_to_string(base_path.join(path))?)
         };
         PathResolver::Path(Box::new(resolver))
-    }
-    };
+    }};
 }
 
 #[test]
@@ -52,4 +50,3 @@ async fn reference_xml() {
     const DIR: &str = "reference_xml";
     test_from_files!(DIR, MdKroki::new().path_resolver(path_resolver!(DIR)));
 }
-
