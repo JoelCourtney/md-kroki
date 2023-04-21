@@ -246,8 +246,9 @@ struct ReplaceRequest {
 }
 
 fn trim_replace_range(content: &str, range: &Range<usize>) -> Range<usize> {
-    let new_start = range.start + (range.len() - content[range.start .. range.end].trim_start().len());
-    let new_end = range.end - (range.len() - content[range.start .. range.end].trim_end().len());
+    let new_start =
+        range.start + (range.len() - content[range.start..range.end].trim_start().len());
+    let new_end = range.end - (range.len() - content[range.start..range.end].trim_end().len());
     new_start..new_end
 }
 
@@ -257,7 +258,9 @@ fn process_xml(mut xml: String) -> Result<String> {
         .unwrap_or_else(|| panic!("didn't find '<svg' in kroki response: {}", xml));
     xml.replace_range(..start_index, "");
     xml.insert_str(0, "<pre>");
-    let end_index = xml.rfind("</svg>").unwrap_or_else(|| panic!("didn't find '</svg>' in kroki response: {}", xml));
+    let end_index = xml
+        .rfind("</svg>")
+        .unwrap_or_else(|| panic!("didn't find '</svg>' in kroki response: {}", xml));
     xml.insert_str(end_index + 6, "</pre>");
     Ok(xml.trim().to_string())
 }
