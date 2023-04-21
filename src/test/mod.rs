@@ -50,3 +50,9 @@ async fn reference_xml() {
     const DIR: &str = "reference_xml";
     test_from_files!(DIR, MdKroki::new().path_resolver(path_resolver!(DIR)));
 }
+
+#[test]
+async fn embedded_in_document() {
+    const DIR: &str = "embedded_in_document";
+    test_from_files!(DIR, MdKroki::new().path_resolver(path_resolver!(DIR)));
+}
