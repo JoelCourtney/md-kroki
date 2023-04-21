@@ -17,19 +17,14 @@ impl MdKroki {
 
         let mut replaces = renders
             .map(|req| {
-                let mut result = client
+                let result = client
                     .post(&self.endpoint)
                     .body(serde_json::to_string(&req).expect("could no serialize kroki request"))
                     .send()
                     .expect("could not send kroki request")
                     .error_for_status()?
                     .text()?;
-                let start_index = result
-                    .find("<svg")
-                    .unwrap_or_else(|| panic!("didn't find '<svg' in kroki response: {}", result));
-                result.replace_range(..start_index, "");
-                result.insert_str(0, "<pre>");
-                result.push_str("</pre>");
+                let result = process_xml(result)?;
                 Ok::<ReplaceRequest, anyhow::Error>(ReplaceRequest {
                     range: req.replace_range,
                     content: result,
@@ -38,8 +33,9 @@ impl MdKroki {
             .collect::<Result<Vec<_>>>()?;
         replaces.sort_by_key(|r| r.range.start);
 
-        for replace in replaces {
-            content.replace_range(replace.range, &replace.content)
+        for replace in replaces.into_iter().rev() {
+            let trimmed_range = trim_replace_range(&content, &replace.range);
+            content.replace_range(trimmed_range, &replace.content)
         }
 
         Ok(content)
@@ -51,7 +47,7 @@ impl MdKroki {
         let renders = self.get_render_requests(&content)?;
 
         let replace_futures = renders.map(|render| async {
-            let mut result = client
+            let result = client
                 .post(&self.endpoint)
                 .body(serde_json::to_string(&render).expect("could no serialize kroki request"))
                 .send()
@@ -60,12 +56,7 @@ impl MdKroki {
                 .error_for_status()?
                 .text()
                 .await?;
-            let start_index = result
-                .find("<svg")
-                .unwrap_or_else(|| panic!("didn't find '<svg' in kroki response: {}", result));
-            result.replace_range(..start_index, "");
-            result.insert_str(0, "<pre>");
-            result.push_str("</pre>");
+            let result = process_xml(result)?;
             Ok::<ReplaceRequest, anyhow::Error>(ReplaceRequest {
                 range: render.replace_range,
                 content: result,
@@ -79,8 +70,9 @@ impl MdKroki {
 
         replaces.sort_by_key(|r| r.range.start);
 
-        for replace in replaces {
-            content.replace_range(replace.range, &replace.content)
+        for replace in replaces.into_iter().rev() {
+            let trimmed_range = trim_replace_range(&content, &replace.range);
+            content.replace_range(trimmed_range, &replace.content)
         }
 
         Ok(content)
@@ -251,4 +243,21 @@ struct RenderRequest {
 struct ReplaceRequest {
     range: Range<usize>,
     content: String,
+}
+
+fn trim_replace_range(content: &str, range: &Range<usize>) -> Range<usize> {
+    let new_start = range.start + (range.len() - content[range.start .. range.end].trim_start().len());
+    let new_end = range.end - (range.len() - content[range.start .. range.end].trim_end().len());
+    new_start..new_end
+}
+
+fn process_xml(mut xml: String) -> Result<String> {
+    let start_index = xml
+        .find("<svg")
+        .unwrap_or_else(|| panic!("didn't find '<svg' in kroki response: {}", xml));
+    xml.replace_range(..start_index, "");
+    xml.insert_str(0, "<pre>");
+    let end_index = xml.rfind("</svg>").unwrap_or_else(|| panic!("didn't find '</svg>' in kroki response: {}", xml));
+    xml.insert_str(end_index + 6, "</pre>");
+    Ok(xml.trim().to_string())
 }
