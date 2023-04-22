@@ -1,11 +1,10 @@
-use std::ops::Range;
-
 use crate::{MdKroki, PathResolver};
 use anyhow::anyhow;
 use anyhow::{bail, Result};
 use pulldown_cmark::{CodeBlockKind, Event, LinkType, Options, Parser, Tag};
 use serde::Serialize;
 use sscanf::sscanf;
+use std::ops::Range;
 use std::path::PathBuf;
 use xmltree::Element;
 
@@ -113,8 +112,6 @@ impl MdKroki {
             Out,
         }
 
-        let _buffer = String::with_capacity(content.len());
-
         let mut state = ParserState::Out;
 
         let mut requests = Vec::new();
@@ -136,14 +133,13 @@ impl MdKroki {
                     }
                     _ if matches!(state, ParserState::InPre(_)) => {}
                     Event::Html(ref tag) if tag.as_ref().starts_with("<kroki") => {
-                        let (xml, closed) = if !tag.contains("/>") {
+                        let (xml, closed) = if !tag.contains("/>") && !tag.contains("</kroki>") {
                             (tag.to_string() + "</kroki>", false)
                         } else {
                             (tag.to_string(), true)
                         };
                         let element = Element::parse(xml.as_bytes())?;
                         let diagram_type = element.attributes.get("type").ok_or_else(|| anyhow!("missing type tag"))?.clone();
-                        let _replace_text = format!("%%kroki-diagram-{}%%", requests.len());
                         if !element.attributes.contains_key("path") {
                             if closed {
                                 bail!("kroki tag must either have an inlined diagram or a `path` attribute.");
@@ -180,6 +176,14 @@ impl MdKroki {
                             let diagram_source = content[content_start..offset.start].to_string();
                             requests.push(RenderRequest {
                                 diagram_source,
+                                diagram_type: diagram_type.clone(),
+                                output_format: "svg".to_string(),
+                                replace_range: replace_start .. offset.end
+                            });
+                            state = ParserState::Out;
+                        } else if let ParserState::InKrokiReferenceTag { ref diagram_type, ref diagram_source, replace_start } = state {
+                            requests.push(RenderRequest {
+                                diagram_source: diagram_source.clone(),
                                 diagram_type: diagram_type.clone(),
                                 output_format: "svg".to_string(),
                                 replace_range: replace_start .. offset.end
