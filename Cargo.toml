@@ -5,6 +5,8 @@ edition = "2021"
 description = "Render kroki diagrams inside markdown"
 repository = "https://github.com/JoelCourtney/md-kroki"
 license = "MIT OR Apache-2.0"
+keywords = ["md", "markdown", "kroki", "diagram", "renderer"]
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -21,3 +23,4 @@ futures = "0.3.28"
 [dev-dependencies]
 pretty_assertions = "1.3.0"
 tokio = { version = "1.27.0", default-features = false, features = ["full"] }
+tokio-test = "0.4.2"
