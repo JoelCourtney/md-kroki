@@ -10,38 +10,10 @@ use std::path::PathBuf;
 use xmltree::Element;
 
 impl MdKroki {
-    pub fn render(&self, mut content: String) -> Result<String> {
-        let client = reqwest::blocking::Client::new();
-
-        let renders = self.get_render_requests(&content)?;
-
-        let mut replaces = renders
-            .map(|req| {
-                let result = client
-                    .post(&self.endpoint)
-                    .body(serde_json::to_string(&req).expect("could no serialize kroki request"))
-                    .send()
-                    .expect("could not send kroki request")
-                    .error_for_status()?
-                    .text()?;
-                let result = process_xml(result)?;
-                Ok::<ReplaceRequest, anyhow::Error>(ReplaceRequest {
-                    range: req.replace_range,
-                    content: result,
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-        replaces.sort_by_key(|r| r.range.start);
-
-        for replace in replaces.into_iter().rev() {
-            let trimmed_range = trim_replace_range(&content, &replace.range);
-            content.replace_range(trimmed_range, &replace.content)
-        }
-
-        Ok(content)
-    }
-
-    pub async fn render_async(&self, mut content: String) -> Result<String> {
+    /// Asynchronously render and inline diagrams into the provided markdown string.
+    ///
+    /// Diagram render requests are awaited in parallel.
+    pub async fn render(&self, mut content: String) -> Result<String> {
         let client = reqwest::Client::new();
 
         let renders = self.get_render_requests(&content)?;
@@ -68,6 +40,41 @@ impl MdKroki {
             .into_iter()
             .collect::<Result<Vec<_>>>()?;
 
+        replaces.sort_by_key(|r| r.range.start);
+
+        for replace in replaces.into_iter().rev() {
+            let trimmed_range = trim_replace_range(&content, &replace.range);
+            content.replace_range(trimmed_range, &replace.content)
+        }
+
+        Ok(content)
+    }
+
+    /// Synchronously render and inline diagrams into the provided markdown string.
+    ///
+    /// Should only be called from a sync context. In an async context, the normal [render][MdKroki::render] method
+    /// is recommended.
+    pub fn render_sync(&self, mut content: String) -> Result<String> {
+        let client = reqwest::blocking::Client::new();
+
+        let renders = self.get_render_requests(&content)?;
+
+        let mut replaces = renders
+            .map(|req| {
+                let result = client
+                    .post(&self.endpoint)
+                    .body(serde_json::to_string(&req).expect("could no serialize kroki request"))
+                    .send()
+                    .expect("could not send kroki request")
+                    .error_for_status()?
+                    .text()?;
+                let result = process_xml(result)?;
+                Ok::<ReplaceRequest, anyhow::Error>(ReplaceRequest {
+                    range: req.replace_range,
+                    content: result,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         replaces.sort_by_key(|r| r.range.start);
 
         for replace in replaces.into_iter().rev() {
@@ -146,16 +153,16 @@ impl MdKroki {
                         }
                         let path: PathBuf = element.attributes.get("path")
                             .ok_or_else(|| anyhow!("src tag required"))?.parse()?;
-                        let path_root = element.attributes.get("root").map(|s| s.as_ref());
+                        let path_root = element.attributes.get("root").map(|s| s.as_str());
                         let diagram_source = match &self.path_resolver {
                             PathResolver::None => bail!("path resolver required for content with file references"),
                             PathResolver::Path(res) => {
                                 if path_root.is_some() {
                                     bail!("path resolver must accept a root argument for content that uses it");
                                 }
-                                res(&path)?
+                                res(path)?
                             }
-                            PathResolver::PathAndRoot(res) => res(&path, path_root)?
+                            PathResolver::PathAndRoot(res) => res(path, path_root)?
                         };
                         if closed {
                             requests.push(RenderRequest {
@@ -185,8 +192,8 @@ impl MdKroki {
                         if let Ok((diagram_type, path)) = sscanf!(url, "kroki-{String}:{PathBuf}") {
                             let diagram_source = match &self.path_resolver {
                                 PathResolver::None => bail!("path resolver required for content with file references"),
-                                PathResolver::Path(res) => res(&path)?,
-                                PathResolver::PathAndRoot(res) => res(&path, None)?
+                                PathResolver::Path(res) => res(path)?,
+                                PathResolver::PathAndRoot(res) => res(path, None)?
                             };
                             state = ParserState::InImage { diagram_type, diagram_source, replace_start: offset.start };
                         }
