@@ -119,14 +119,11 @@ pub struct MdKroki {
 }
 
 impl MdKroki {
-    /// Create a default renderer.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Create a builder.
     pub fn builder() -> MdKrokiBuilder {
-        MdKrokiBuilder::new()
+        MdKrokiBuilder {
+            md_kroki: MdKroki::default(),
+        }
     }
 }
 
@@ -144,21 +141,15 @@ enum PathResolver {
 
 /// Builder for configuring the renderer.
 pub struct MdKrokiBuilder {
-    endpoint: String,
-    path_resolver: PathResolver,
+    md_kroki: MdKroki,
 }
 
 impl MdKrokiBuilder {
-    /// Creates a builder with default values.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Sets the endpoint url. Use if you'd like to target your own deployment of Kroki.
     ///
     /// Default is <https://kroki.io>.
     pub fn endpoint(mut self, endpoint: impl std::fmt::Display) -> Self {
-        self.endpoint = endpoint.to_string();
+        self.md_kroki.endpoint = endpoint.to_string();
         self
     }
 
@@ -179,7 +170,7 @@ impl MdKrokiBuilder {
     where
         F: Fn(PathBuf) -> Result<String> + Send + 'static,
     {
-        self.path_resolver = PathResolver::Path(Box::new(path_resolver));
+        self.md_kroki.path_resolver = PathResolver::Path(Box::new(path_resolver));
         self
     }
 
@@ -221,31 +212,19 @@ impl MdKrokiBuilder {
         F: Fn(PathBuf, Option<&str>) -> Result<String> + Send + 'static,
     {
         let wrapped = move |path, root: Option<&str>| path_resolver(path, root);
-        self.path_resolver = PathResolver::PathAndRoot(Box::new(wrapped));
+        self.md_kroki.path_resolver = PathResolver::PathAndRoot(Box::new(wrapped));
         self
     }
 
     /// Consume self and build a renderer.
     pub fn build(self) -> MdKroki {
-        MdKroki {
-            endpoint: self.endpoint,
-            path_resolver: self.path_resolver,
-        }
+        self.md_kroki
     }
 }
 
 impl Default for MdKroki {
     fn default() -> Self {
-        MdKroki {
-            endpoint: "https://kroki.io".to_string(),
-            path_resolver: PathResolver::None,
-        }
-    }
-}
-
-impl Default for MdKrokiBuilder {
-    fn default() -> Self {
-        MdKrokiBuilder {
+        Self {
             endpoint: "https://kroki.io".to_string(),
             path_resolver: PathResolver::None,
         }
