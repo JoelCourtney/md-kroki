@@ -2,3 +2,4 @@
 .cargo-ok
 .DS_Store
 Cargo.lock
+.idea/
