@@ -17,7 +17,7 @@
 //! # tokio_test::block_on(async {
 //! # let my_markdown_string: String = String::new();
 //! // This default renderer uses the kroki.io API and only allows inlined diagrams.
-//! let renderer = MdKroki::new();
+//! let renderer = MdKroki::default();
 //!
 //! renderer.render(my_markdown_string).await
 //! # });
