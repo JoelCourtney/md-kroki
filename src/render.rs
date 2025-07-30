@@ -27,7 +27,7 @@ impl MdKroki {
                 .error_for_status()?
                 .text()
                 .await?;
-            let result = process_xml(result)?;
+            let result = process_xml(result);
             Ok::<ReplaceRequest, anyhow::Error>(ReplaceRequest {
                 range: render.replace_range,
                 content: result,
@@ -43,7 +43,7 @@ impl MdKroki {
 
         for replace in replaces.into_iter().rev() {
             let trimmed_range = trim_replace_range(&content, &replace.range);
-            content.replace_range(trimmed_range, &replace.content)
+            content.replace_range(trimmed_range, &replace.content);
         }
 
         Ok(content)
@@ -67,7 +67,7 @@ impl MdKroki {
                     .expect("could not send kroki request")
                     .error_for_status()?
                     .text()?;
-                let result = process_xml(result)?;
+                let result = process_xml(result);
                 Ok::<ReplaceRequest, anyhow::Error>(ReplaceRequest {
                     range: req.replace_range,
                     content: result,
@@ -78,7 +78,7 @@ impl MdKroki {
 
         for replace in replaces.into_iter().rev() {
             let trimmed_range = trim_replace_range(&content, &replace.range);
-            content.replace_range(trimmed_range, &replace.content)
+            content.replace_range(trimmed_range, &replace.content);
         }
 
         Ok(content)
@@ -129,7 +129,7 @@ impl MdKroki {
                             ParserState::InPre(n@2..) => { state = ParserState::InPre(n-1) }
                             ParserState::InPre(1) => { state = ParserState::Out }
                             _ => {}
-                        };
+                        }
                     }
                     _ if matches!(state, ParserState::InPre(_)) => {}
                     Event::Html(ref tag) if tag.as_ref().starts_with("<kroki") => {
@@ -149,7 +149,7 @@ impl MdKroki {
                         }
                         let path: PathBuf = element.attributes.get("path")
                             .ok_or_else(|| anyhow!("src tag required"))?.parse()?;
-                        let path_root = element.attributes.get("root").map(|s| s.as_str());
+                        let path_root = element.attributes.get("root").map(String::as_str);
                         let diagram_source = match &self.path_resolver {
                             PathResolver::None => bail!("path resolver required for content with file references"),
                             PathResolver::Path(res) => {
@@ -166,7 +166,7 @@ impl MdKroki {
                                 diagram_type,
                                 output_format: "svg".to_string(),
                                 replace_range: offset
-                            })
+                            });
                         } else {
                             state = ParserState::InKrokiReferenceTag { diagram_type, diagram_source, replace_start: offset.start }
                         }
@@ -263,15 +263,15 @@ fn trim_replace_range(content: &str, range: &Range<usize>) -> Range<usize> {
     new_start..new_end
 }
 
-fn process_xml(mut xml: String) -> Result<String> {
+fn process_xml(mut xml: String) -> String {
     let start_index = xml
         .find("<svg")
-        .unwrap_or_else(|| panic!("didn't find '<svg' in kroki response: {}", xml));
+        .unwrap_or_else(|| panic!("didn't find '<svg' in kroki response: {xml}"));
     xml.replace_range(..start_index, "");
     xml.insert_str(0, "<pre>");
     let end_index = xml
         .rfind("</svg>")
-        .unwrap_or_else(|| panic!("didn't find '</svg>' in kroki response: {}", xml));
+        .unwrap_or_else(|| panic!("didn't find '</svg>' in kroki response: {xml}"));
     xml.insert_str(end_index + 6, "</pre>");
-    Ok(xml.trim().to_string())
+    xml.trim().to_string()
 }
