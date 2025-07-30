@@ -1,7 +1,7 @@
 use crate::{MdKroki, PathResolver};
 use anyhow::anyhow;
-use anyhow::{bail, Result};
-use pulldown_cmark::{CodeBlockKind, Event, LinkType, Options, Parser, Tag};
+use anyhow::{Result, bail};
+use pulldown_cmark::{CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
 use serde::Serialize;
 use sscanf::sscanf;
 use std::ops::Range;
@@ -132,7 +132,7 @@ impl MdKroki {
                         }
                     }
                     _ if matches!(state, ParserState::InPre(_)) => {}
-                    Event::Html(ref tag) if tag.as_ref().starts_with("<kroki") => {
+                    Event::Html(ref tag) | Event::InlineHtml(ref tag) if tag.as_ref().starts_with("<kroki") => {
                         let (xml, closed) = if !tag.contains("/>") && !tag.contains("</kroki>") {
                             (tag.to_string() + "</kroki>", false)
                         } else {
@@ -171,7 +171,7 @@ impl MdKroki {
                             state = ParserState::InKrokiReferenceTag { diagram_type, diagram_source, replace_start: offset.start }
                         }
                     }
-                    Event::Html(ref tag) if tag.contains("</kroki>") => {
+                    Event::Html(ref tag) | Event::InlineHtml(ref tag) if tag.contains("</kroki>") => {
                         if let ParserState::InKrokiInlineTag { ref diagram_type, content_start, replace_start } = state {
                             let diagram_source = content[content_start..offset.start].to_string();
                             requests.push(RenderRequest {
@@ -192,7 +192,7 @@ impl MdKroki {
                         }
                     }
                     _ if matches!(state, ParserState::InKrokiReferenceTag {..} | ParserState::InKrokiInlineTag {..}) => {},
-                    Event::Start(Tag::Image(LinkType::Inline, ref url, _)) => {
+                    Event::Start(Tag::Image { link_type: LinkType::Inline, dest_url: ref url, .. }) => {
                         if let Ok((diagram_type, path)) = sscanf!(url, "kroki-{String}:{PathBuf}") {
                             let diagram_source = match &self.path_resolver {
                                 PathResolver::None => bail!("path resolver required for content with file references"),
@@ -202,7 +202,7 @@ impl MdKroki {
                             state = ParserState::InImage { diagram_type, diagram_source, replace_start: offset.start };
                         }
                     }
-                    Event::End(Tag::Image(..)) => {
+                    Event::End(TagEnd::Image) => {
                         if let ParserState::InImage { ref diagram_type, ref diagram_source, replace_start } = state {
                             requests.push(RenderRequest {
                                 diagram_source: diagram_source.to_string(),
@@ -218,7 +218,7 @@ impl MdKroki {
                             state = ParserState::InCode { diagram_type }
                         }
                     }
-                    Event::End(Tag::CodeBlock(..)) => {
+                    Event::End(TagEnd::CodeBlock) => {
                         if let ParserState::InCode { ref diagram_type } = state {
                             let content_start = content[offset.clone()].trim_start().find(char::is_whitespace).ok_or_else(|| anyhow!("code block needs whitespace somewhere"))? + offset.start;
                             let content_end = content[offset.clone()].trim_end().rfind(|c| c != '`').unwrap() + offset.start + 1;
